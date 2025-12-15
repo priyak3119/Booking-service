@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import booking, slots, payment
+
+from app.routers import booking, slots, payment
+
 
 app = FastAPI(title="FBMA Booking Service")
 
@@ -15,6 +17,3 @@ app.add_middleware(
 app.include_router(booking.router, prefix="/api/booking", tags=["Booking"])
 app.include_router(slots.router, prefix="/api/slots", tags=["Slots"])
 app.include_router(payment.router, prefix="/api/payment", tags=["Payment"])
-
-
-
