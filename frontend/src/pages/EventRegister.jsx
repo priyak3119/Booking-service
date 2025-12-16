@@ -1,83 +1,74 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import SeatSelector from "../pages/SeatSelector";
-import "./EventRegister.css";
+import SeatSelector from "./SeatSelector";
+import "../styles/EventRegister.css";
+
 
 const EventRegister = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const eventId = searchParams.get("event");
 
   const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [slotType, setSlotType] = useState("");
   const [selectedSeats, setSelectedSeats] = useState([]);
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
+  const [loading, setLoading] = useState(true);
+
+  // FORM DATA
+  const [form, setForm] = useState({
+    firstName: "",
+    middleName: "",
+    lastName: "",
     phone: "",
-    gender: "",
     nationality: "",
-    agree: false,
+    email: ""
   });
 
   useEffect(() => {
-    if (!eventId) return;
-
     axios
-      .get(`http://127.0.0.1:8000/api/v2/events/web`)
-      .then((res) => {
-        const found = res.data.find((e) => e.id === Number(eventId));
-        setEvent(found || null);
+      .get("http://127.0.0.1:8000/api/v2/events/web")
+      .then(res => {
+        const found = res.data.find(e => e.id === Number(eventId));
+        setEvent(found);
       })
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
+
     if (!slotType || selectedSeats.length === 0) {
       alert("Please select slot type and seats");
       return;
     }
 
-    // send registration to backend
-    axios
-      .post(`http://127.0.0.1:8000/api/v2/events/${eventId}/register`, {
-        ...formData,
-        slotType,
-        selectedSeats,
-      })
-      .then((res) => {
-        alert("Registration successful! Proceed to payment.");
-        // redirect to payment page here if needed
-      })
-      .catch((err) => {
-        console.error(err);
-        alert("Error during registration");
-      });
+    // 👉 send to backend later
+    const payload = {
+      event,
+      ...form,
+      slotType,
+      seats: selectedSeats
+    };
+
+    console.log("Registration payload:", payload);
+
+    navigate("/payment", { state: payload });
   };
 
-  if (loading) return <p className="loading">Loading event…</p>;
+  if (loading) return <p className="loading">Loading...</p>;
   if (!event) return <p className="error">Event not found</p>;
 
   return (
     <div className="event-page">
-      {/* Event Header */}
+      {/* Event Info */}
       <div className="event-header">
         <h1>{event.title?.en}</h1>
         <div className="meta">
-          <span>{event.category?.en || "N/A"}</span>
-          <span>{event.location?.en || "N/A"}</span>
+          <span>{event.category?.en}</span>
+          <span>{event.location?.en}</span>
           <span>
-            {event.dates?.[0] ? new Date(event.dates[0]).toLocaleDateString() : "N/A"}
+            {new Date(event.dates[0]).toLocaleDateString()}
           </span>
         </div>
       </div>
@@ -85,84 +76,75 @@ const EventRegister = () => {
       {/* Registration Form */}
       <div className="form-card">
         <h2>Event Registration</h2>
+
         <form onSubmit={handleSubmit}>
           <div className="form-row">
             <input
-              type="text"
-              name="fullName"
-              placeholder="Full Name"
-              value={formData.fullName}
-              onChange={handleInputChange}
+              placeholder="First Name"
               required
+              onChange={e => setForm({ ...form, firstName: e.target.value })}
             />
+            <input
+              placeholder="Middle Name (Optional)"
+              onChange={e => setForm({ ...form, middleName: e.target.value })}
+            />
+            <input
+              placeholder="Last Name"
+              required
+              onChange={e => setForm({ ...form, lastName: e.target.value })}
+            />
+          </div>
+
+          <div className="form-row">
+            <input
+              placeholder="Phone Number"
+              required
+              onChange={e => setForm({ ...form, phone: e.target.value })}
+            />
+            <input
+              placeholder="Nationality"
+              required
+              onChange={e => setForm({ ...form, nationality: e.target.value })}
+            />
+          </div>
+
+          <div className="form-row">
             <input
               type="email"
-              name="email"
-              placeholder="Email Address"
-              value={formData.email}
-              onChange={handleInputChange}
+              placeholder="Email"
               required
+              onChange={e => setForm({ ...form, email: e.target.value })}
             />
-          </div>
-
-          <div className="form-row">
-            <input
-              type="tel"
-              name="phone"
-              placeholder="Phone Number"
-              value={formData.phone}
-              onChange={handleInputChange}
+            <select
               required
-            />
-            <select name="gender" value={formData.gender} onChange={handleInputChange} required>
-              <option value="">Select Gender</option>
-              <option>Female</option>
-              <option>Male</option>
-            </select>
-          </div>
-
-          <div className="form-row">
-            <input
-              type="text"
-              name="nationality"
-              placeholder="Nationality"
-              value={formData.nationality}
-              onChange={handleInputChange}
-              required
-            />
-          </div>
-
-          <div className="form-row">
-            <select value={slotType} onChange={(e) => setSlotType(e.target.value)} required>
+              value={slotType}
+              onChange={e => {
+                setSlotType(e.target.value);
+                setSelectedSeats([]);
+              }}
+            >
               <option value="">Select Slot Type</option>
-              <option value="VIP">VIP</option>
-              <option value="Normal">Normal</option>
+              <option value="normal">Normal</option>
+              <option value="vip">VIP</option>
             </select>
           </div>
 
           {slotType && (
-            <>
-              <SeatSelector
-                eventId={event.id}
-                slotType={slotType}
-                onSelect={setSelectedSeats}
-              />
-              <p>Selected Seats: {selectedSeats.join(", ")}</p>
-            </>
+            <SeatSelector
+              slotType={slotType}
+              bookedSeats={[2, 5]} // TODO: fetch from backend
+              onSelect={setSelectedSeats}
+            />
           )}
 
-          <div className="checkbox">
-            <input
-              type="checkbox"
-              name="agree"
-              checked={formData.agree}
-              onChange={handleInputChange}
-              required
-            />
-            <label>I agree to the terms & conditions</label>
-          </div>
+          <p className="selected-info">
+            Selected Seats: {selectedSeats.length > 0 ? selectedSeats.join(", ") : "None"}
+          </p>
 
-          <button type="submit">Register & Proceed to Payment</button>
+
+          <button type="submit">
+            Proceed to Payment
+          </button>
         </form>
       </div>
     </div>
@@ -170,3 +152,4 @@ const EventRegister = () => {
 };
 
 export default EventRegister;
+

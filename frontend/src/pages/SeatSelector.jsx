@@ -1,43 +1,59 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
-import "./SeatSelector.css";
+import "../styles/SeatSelector.css";
 
-const SeatSelector = ({ eventId, slotType, onSelect }) => {
-  const [seats, setSeats] = useState([]);
+const SeatSelector = ({ slotType, bookedSeats = [], onSelect }) => {
+  const TOTAL_SEATS = slotType === "vip" ? 12 : 30;
+  const MAX_SELECT = slotType === "vip" ? 6 : 2;
+
+  const [selected, setSelected] = useState([]);
 
   useEffect(() => {
-    if (!slotType) return;
+    onSelect(selected);
+  }, [selected, onSelect]);
 
-    axios
-      .get(`http://127.0.0.1:8000/api/v2/events/${eventId}/seats?slot=${slotType}`)
-      .then((res) => {
-        // add `selected` property for frontend selection
-        const mapped = res.data.map((s) => ({ ...s, selected: false }));
-        setSeats(mapped);
-      })
-      .catch((err) => console.error(err));
-  }, [eventId, slotType]);
+  const toggleSeat = (seatNo) => {
+    if (bookedSeats.includes(seatNo)) return;
 
-  const handleSeatClick = (index) => {
-    if (seats[index].booked) return; // cannot select booked seat
-    const updated = [...seats];
-    updated[index].selected = !updated[index].selected;
-    setSeats(updated);
-    const selectedSeats = updated.filter((s) => s.selected).map((s) => s.seat);
-    onSelect(selectedSeats);
+    if (selected.includes(seatNo)) {
+      setSelected(selected.filter(s => s !== seatNo));
+    } else {
+      if (selected.length >= MAX_SELECT) {
+        alert(`Maximum ${MAX_SELECT} seats allowed for ${slotType.toUpperCase()}`);
+        return;
+      }
+      setSelected([...selected, seatNo]);
+    }
   };
 
   return (
-    <div className="seat-map">
-      {seats.map((s, index) => (
-        <div
-          key={s.seat}
-          className={`seat ${s.booked ? "booked" : s.selected ? "selected" : "available"}`}
-          onClick={() => handleSeatClick(index)}
-        >
-          {s.seat}
-        </div>
-      ))}
+    <div className="seat-container">
+      <h3>{slotType.toUpperCase()} Seating</h3>
+
+      <div className="stadium">
+        {Array.from({ length: TOTAL_SEATS }, (_, i) => {
+          const seatNo = i + 1;
+          const isBooked = bookedSeats.includes(seatNo);
+          const isSelected = selected.includes(seatNo);
+
+          return (
+            <div
+              key={seatNo}
+              className={`seat 
+                ${isBooked ? "booked" : ""} 
+                ${isSelected ? "selected" : ""}`}
+              onClick={() => toggleSeat(seatNo)}
+            >
+              {seatNo}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="legend">
+        <span className="box available"></span> Available
+        <span className="box selected"></span> Selected
+        <span className="box booked"></span> Booked
+      </p>
     </div>
   );
 };

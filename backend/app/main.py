@@ -17,11 +17,9 @@ app.add_middleware(
 app.include_router(booking.router, prefix="/api/booking", tags=["Booking"])
 app.include_router(slots.router, prefix="/api/slots", tags=["Slots"])
 app.include_router(payment.router, prefix="/api/payment", tags=["Payment"])
-# app.include_router(events.router, prefix="/api/v2/events", tags=["Events"])
 
 app.include_router(events.router, prefix="/api/v2", tags=["Events"])
 
-# app.include_router(events.router, prefix="/api/v2", tags=["Events"])
 
 
 
