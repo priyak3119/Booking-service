@@ -1,0 +1,38 @@
+.seat-map {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 15px 0;
+}
+
+.seat {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.seat.available {
+  background-color: #0f1c2e;
+  color: white;
+}
+
+.seat.selected {
+  background-color: #00b894;
+  color: white;
+}
+
+.seat.booked {
+  background-color: #d63031;
+  color: white;
+  cursor: not-allowed;
+}
+
+.seat:hover:not(.booked) {
+  transform: scale(1.1);
+}
