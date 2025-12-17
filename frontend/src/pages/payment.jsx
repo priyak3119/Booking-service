@@ -29,7 +29,7 @@ const Payment = () => {
   } = state;
 
   const totalAmount =
-    slotType === "vip" ? seats.length * 200 : seats.length * 100;
+    slotType === "vip" ? seats.length * 10000 : seats.length * 2000;
 
   const handlePayment = async () => {
     try {
