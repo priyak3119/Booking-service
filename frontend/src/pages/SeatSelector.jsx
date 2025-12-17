@@ -1,95 +1,88 @@
 import React, { useEffect, useState } from "react";
 import "../styles/SeatSelector.css";
 
-const SeatSelector = ({ slotType, bookedSeats = [], onSelect }) => {
+const SeatSelector = ({ slotType, bookedTables = [], onSelect }) => {
+  // VIP TABLE LOGIC
+  const TOTAL_TABLES = 10;
+  const MAX_TABLES = 1; // usually 1 table per booking
 
-  // VIP STATE (seat numbers)
-  const [selectedSeats, setSelectedSeats] = useState([]);
-
-  // NON-VIP STATE (seat count)
+  const [selectedTables, setSelectedTables] = useState([]);
   const [seatCount, setSeatCount] = useState(1);
 
-  // Notify parent
   useEffect(() => {
     if (slotType === "vip") {
-      onSelect(selectedSeats);
+      onSelect({
+        tables: selectedTables,
+        seats: selectedTables.length * 6
+      });
     } else {
-      onSelect(seatCount);
+      onSelect({
+        tables: [],
+        seats: seatCount
+      });
     }
-  }, [selectedSeats, seatCount, slotType, onSelect]);
+  }, [selectedTables, seatCount, slotType, onSelect]);
 
-  /* ---------------- VIP LOGIC ---------------- */
+  // VIP TABLE TOGGLE
+  const toggleTable = (tableNo) => {
+    if (bookedTables.includes(tableNo)) return;
 
-  const TOTAL_SEATS = 10;
-  const MAX_SELECT = 6;
-
-  const toggleSeat = (seatNo) => {
-    if (bookedSeats.includes(seatNo)) return;
-
-    if (selectedSeats.includes(seatNo)) {
-      setSelectedSeats(selectedSeats.filter(s => s !== seatNo));
+    if (selectedTables.includes(tableNo)) {
+      setSelectedTables([]);
     } else {
-      if (selectedSeats.length >= MAX_SELECT) {
-        alert(`Maximum ${MAX_SELECT} VIP seats allowed`);
+      if (selectedTables.length >= MAX_TABLES) {
+        alert("Only one VIP table allowed per booking");
         return;
       }
-      setSelectedSeats([...selectedSeats, seatNo]);
+      setSelectedTables([tableNo]);
     }
   };
 
-  /* ---------------- UI ---------------- */
-
-  // 🔹 VIP SEAT GRID
-  if (slotType === "vip") {
+  // NON-VIP SEAT COUNT
+  if (slotType !== "vip") {
     return (
       <div className="seat-container">
-        <h3>VIP Seating</h3>
-
-        <div className="stadium">
-          {Array.from({ length: TOTAL_SEATS }, (_, i) => {
-            const seatNo = i + 1;
-            const isBooked = bookedSeats.includes(seatNo);
-            const isSelected = selectedSeats.includes(seatNo);
-
-            return (
-              <div
-                key={seatNo}
-                className={`seat 
-                  ${isBooked ? "booked" : ""} 
-                  ${isSelected ? "selected" : ""}`}
-                onClick={() => toggleSeat(seatNo)}
-              >
-                {seatNo}
-              </div>
-            );
-          })}
-        </div>
-
-        <p className="legend">
-          <span className="box available"></span> Available
-          <span className="box selected"></span> Selected
-          <span className="box booked"></span> Booked
-        </p>
+        <h3>Number of Seats</h3>
+        <input
+          type="number"
+          min="1"
+          max="30"
+          value={seatCount}
+          onChange={(e) => setSeatCount(Number(e.target.value))}
+        />
       </div>
     );
   }
 
-  // 🔹 NON-VIP QUANTITY INPUT
+  // VIP TABLE UI
   return (
     <div className="seat-container">
-      <h3>Number of Seats</h3>
+      <h3>VIP Tables (6 seats per table)</h3>
 
-      <input
-        type="number"
-        min="1"
-        max="30"
-        value={seatCount}
-        onChange={(e) => setSeatCount(Number(e.target.value))}
-        className="seat-count-input"
-      />
+      <div className="stadium">
+        {Array.from({ length: TOTAL_TABLES }, (_, i) => {
+          const tableNo = i + 1;
+          const isBooked = bookedTables.includes(tableNo);
+          const isSelected = selectedTables.includes(tableNo);
 
-      <p className="seat-info">
-        Enter how many seats you want to book
+          return (
+            <div
+              key={tableNo}
+              className={`seat table 
+                ${isBooked ? "booked" : ""} 
+                ${isSelected ? "selected" : ""}`}
+              onClick={() => toggleTable(tableNo)}
+            >
+              Table {tableNo}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="legend">
+        <span className="box available"></span> Available
+        <span className="box selected"></span> Selected
+        <span className="box booked"></span> Booked
       </p>
     </div>
   );

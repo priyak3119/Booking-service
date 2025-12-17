@@ -65,10 +65,10 @@ const EventRegister = () => {
       <div className="event-header">
         <h1>{event.title?.en}</h1>
         <div className="meta">
-          <span>{event.category?.en}</span>
-          <span>{event.location?.en}</span>
+          <span>Category: {event.category?.en}</span>
+          <span>Location: {event.location?.en}</span>
           <span>
-            {new Date(event.dates[0]).toLocaleDateString()}
+            Event Date: {new Date(event.dates[0]).toLocaleDateString()}
           </span>
         </div>
       </div>
