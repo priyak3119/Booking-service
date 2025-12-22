@@ -174,18 +174,25 @@ export function BookingPage() {
   };
 
   const proceedToPayment = () => {
+    if (!selectedPackage) return;
+
     if (selectedPackage.type === 'VIP') {
       if (!selectedTable) {
         setError('Please select a VIP table');
         return;
       }
-    }
+      setStep(3);
+      setError('');
+      return;
+    } 
     if (selectedPackage.type === 'RIDER') {
       if (!validateRiders()) return;
+
+      setStep(4);
+      setError('');
     }
-    setStep(3);
-    setError('');
   };
+
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -818,12 +825,23 @@ export function BookingPage() {
             )}
 
             <div className="flex gap-4">
-              <button
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedPackage.type === 'VIP') {
+                      setStep(3);
+                    } else {
+                      setStep(2);
+                    }
+                  }}
+                  className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
+                >
+              {/* <button
                 type="button"
                 onClick={() => setStep(3)}
                 disabled={submitLoading}
                 className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
-              >
+              > */}
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back</span>
               </button>
