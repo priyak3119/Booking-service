@@ -65,10 +65,10 @@ export function BookingPage() {
       setEvent(eventData);
 
       // Fetch packages separately
-      const packagesResponse = await fetch(`${API_URL}/events/${eventId}/packages`);
-      if (!packagesResponse.ok) throw new Error('Failed to fetch packages');
-      const packagesData = await packagesResponse.json();
-      setPackages(packagesData || []);
+      // const packagesResponse = await fetch(`${API_URL}/events/${eventId}/packages`);
+      // if (!packagesResponse.ok) throw new Error('Failed to fetch packages');
+      // const packagesData = await packagesResponse.json();
+      // setPackages(packagesData || []);
 
       // Fetch tables if needed
       setTables(eventData.tables || []);
@@ -278,10 +278,11 @@ export function BookingPage() {
     }
   };
 
-  // const totalAmount =
-  // selectedPackage.type === 'VIP'
-  //   ? selectedPackage.price
-  //   : selectedPackage.price * riderCount;
+  const totalAmount = selectedPackage
+  ? selectedPackage.type === 'VIP'
+    ? selectedPackage.price
+    : selectedPackage.price * riderCount
+  : 0;
 
   const handleBackToBooking = () => {
     setStep(1);
@@ -327,7 +328,13 @@ export function BookingPage() {
       </div>
     );
   }
-
+  if ((step === 2 || step === 3 || step === 4) && !selectedPackage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-slate-600">Please select a package first.</p>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8 px-4">
       <div className="max-w-3xl mx-auto">
@@ -362,17 +369,7 @@ export function BookingPage() {
             {step === 4 && 'Payment'}
             {step === 5 && 'Success'}
           </div>
-
-          {/* <div className="mt-2 text-xs text-slate-600 text-center">
-            {step === 1 && 'Event & Package'}
-            {step === 2 && 'Personal Details'}
-            {step === 3 && 'Package Selection'}
-            {step === 4 && 'Payment'}
-            {step === 5 && 'Success'}
-          </div> */}
         </div>
-
-        {/* Step 1: Event Information & Package Selection */}
         {step === 1 && (
           <form className="space-y-6">
             <section className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
@@ -403,12 +400,6 @@ export function BookingPage() {
                     </div>
                   </div>
                 </div>
-                {/* {event.description && (
-                  <div>
-                    <p className="text-sm text-slate-600 mb-2">Description</p>
-                    <p className="text-slate-700">{event.description}</p>
-                  </div>
-                )} */}
               </div>
             </section>
 
@@ -465,7 +456,7 @@ export function BookingPage() {
 
         {step === 2 && (
           <form className="space-y-6">
-            {selectedPackage.type === 'VIP' ? (
+            {selectedPackage?.type === 'VIP' ? (
               <section className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-orange-600 to-orange-700">
                   <h2 className="text-2xl font-bold text-white">Select VIP Table</h2>
@@ -473,7 +464,7 @@ export function BookingPage() {
 
                 <div className="p-6">
                   <p className="text-sm text-slate-600 mb-4">
-                    1 Table = 6 Seats | Price: AED 10,000
+                    1 Table = 6 Seats | Price: AED 12,000
                   </p>
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -494,34 +485,6 @@ export function BookingPage() {
                   </div>
                 </div>
               </section>
-              // <section className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-              //   <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-orange-600 to-orange-700">
-              //     <h2 className="text-2xl font-bold text-white">Select Your Table</h2>
-              //   </div>
-              //   <div className="p-6">
-              //     <p className="text-sm text-slate-600 mb-4">
-              //       Available tables: <span className="font-bold text-slate-900">{tables.length}</span>
-              //     </p>
-              //     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              //       {tables.map((table) => (
-              //         <button
-              //           key={table.id}
-              //           type="button"
-              //           onClick={() => setSelectedTable(table.id)}
-              //           className={`p-4 rounded-lg border-2 transition-all font-medium ${
-              //             selectedTable === table.id
-              //               ? 'border-blue-600 bg-blue-50 text-blue-600'
-              //               : 'border-slate-300 bg-slate-50 text-slate-600 hover:border-blue-400'
-              //           }`}
-              //         >
-              //           <div className="text-sm">Table</div>
-              //           <div className="text-xl font-bold">{table.table_number}</div>
-              //           <div className="text-xs mt-1">Seats: {table.capacity}</div>
-              //         </button>
-              //       ))}
-              //     </div>
-              //   </div>
-              // </section>
             ) : (
               <section className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-orange-600 to-orange-700">
@@ -746,9 +709,9 @@ export function BookingPage() {
               <div className="p-6">
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-sm text-slate-600">Total Amount</p>
-                  {/* <p className="text-3xl font-bold text-blue-600">AED {totalAmount}</p> */}
+                  <p className="text-3xl font-bold text-blue-600">AED {totalAmount}</p>
 
-                  <p className="text-3xl font-bold text-blue-600">AED {selectedPackage.price}</p>
+                  {/* <p className="text-3xl font-bold text-blue-600">AED {selectedPackage.price}</p> */}
                 </div>
 
                 <div className="space-y-4">
@@ -834,12 +797,12 @@ export function BookingPage() {
                       setStep(2);
                     }
                   }}
+                  disabled={submitLoading}
                   className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
                 >
               {/* <button
                 type="button"
                 onClick={() => setStep(3)}
-                disabled={submitLoading}
                 className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
               > */}
                 <ChevronLeft className="w-4 h-4" />
