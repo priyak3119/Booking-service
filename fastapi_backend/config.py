@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     database_url: str
     magniti_api_key: str
     magniti_merchant_id: str
+    magniti_operator_id: str
+    magniti_password: str
+    magniti_api_version: str = "100"
     upload_folder: str = "./uploads"
     max_file_size: int = 5242880
     allowed_file_types: list = ["pdf", "jpg", "png", "jpeg"]
@@ -13,3 +16,6 @@ class Settings(BaseSettings):
         env_file = ".env"
 
 settings = Settings()
+
+
+

@@ -1,8 +1,16 @@
+from dotenv import load_dotenv
+load_dotenv()  # MUST be before using env vars
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
-from routes import events, bookings, payments, uploads
+from routes import events, bookings, payments, uploads, packages, tables
 import os
+
+
+from config import settings
+print("Magniti merchant:", settings.magniti_merchant_id)
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +32,8 @@ app.include_router(events.router)
 app.include_router(bookings.router)
 app.include_router(payments.router)
 app.include_router(uploads.router)
+app.include_router(packages.router)
+app.include_router(tables.router)
 
 @app.get("/")
 def read_root():

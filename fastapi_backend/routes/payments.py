@@ -1,126 +1,90 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Payment, Booking, PaymentStatus
-from schemas import PaymentInitiate, PaymentResponse
+from models import Booking, Payment, PaymentStatus
+from schemas import PaymentInitiate
 from config import settings
 import requests
-import json
-from uuid import UUID
 import uuid
+import json
 
 router = APIRouter(prefix="/api/v2", tags=["payments"])
 
-@router.post("/payment/process", response_model=PaymentResponse)
-def process_payment(payment_data: PaymentInitiate, db: Session = Depends(get_db)):
+MAGNITI_BASE_URL = "https://ap-gateway.mastercard.com/api/rest"
+# MAGNITI_BASE_URL = "https://ap-gateway.mastercard.com/ma/login.s"
+
+
+@router.post("/payment/create-session")
+def create_payment_session(
+    payment_data: PaymentInitiate,
+    db: Session = Depends(get_db)
+):
+    booking = db.query(Booking).filter(
+        Booking.id == payment_data.booking_id
+    ).first()
+
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    transaction_id = f"TXN-{uuid.uuid4().hex[:12].upper()}"
+
+    payload = {
+        "apiOperation": "CREATE_CHECKOUT_SESSION",
+        "order": {
+            "id": transaction_id,
+            "amount": payment_data.amount,
+            "currency": "AED"
+        },
+        "interaction": {
+            "returnUrl": "http://localhost:5173/payment/success",
+            "cancelUrl": "http://localhost:5173/payment/failed"
+        }
+    }
+
     try:
-        booking = db.query(Booking).filter(Booking.id == payment_data.booking_id).first()
-        if not booking:
-            raise HTTPException(status_code=404, detail="Booking not found")
-
-        existing_payment = db.query(Payment).filter(Payment.booking_id == payment_data.booking_id).first()
-        if existing_payment:
-            raise HTTPException(status_code=400, detail="Payment already exists for this booking")
-
-        transaction_id = f"TXN-{uuid.uuid4().hex[:12].upper()}"
-
-        magniti_payload = {
-            "merchantId": settings.magniti_merchant_id,
-            "transactionId": transaction_id,
-            "amount": str(payment_data.amount),
-            "currency": "AED",
-            "cardNumber": payment_data.card_number,
-            "cardHolder": payment_data.card_holder,
-            "expiryMonth": str(payment_data.expiry_month).zfill(2),
-            "expiryYear": str(payment_data.expiry_year),
-            "cvv": payment_data.cvv,
-        }
-
-        headers = {
-            "Authorization": f"Bearer {settings.magniti_api_key}",
-            "Content-Type": "application/json"
-        }
-
-        try:
-            response = requests.post(
-                "https://api.magniti.ae/v1/payments/process",
-                json=magniti_payload,
-                headers=headers,
-                timeout=30
-            )
-
-            magniti_response = response.json()
-            payment_status = PaymentStatus.COMPLETED if response.status_code == 200 else PaymentStatus.FAILED
-
-        except requests.exceptions.RequestException as e:
-            magniti_response = {"error": str(e)}
-            payment_status = PaymentStatus.FAILED
-
-        payment = Payment(
-            booking_id=payment_data.booking_id,
-            amount=payment_data.amount,
-            currency="AED",
-            transaction_id=transaction_id,
-            status=payment_status,
-            payment_method="card",
-            magniti_response=json.dumps(magniti_response)
+        response = requests.post(
+            f"{MAGNITI_BASE_URL}/version/{settings.magniti_api_version}"
+            f"/merchant/{settings.magniti_merchant_id}/session",
+            auth=(
+                settings.magniti_operator_id,
+                settings.magniti_password
+            ),
+            json=payload,
+            timeout=30
         )
-
-        db.add(payment)
-        db.commit()
-        db.refresh(payment)
-
-        if payment_status != PaymentStatus.COMPLETED:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Payment processing failed: {magniti_response.get('message', 'Unknown error')}"
-            )
-
-        return PaymentResponse(
-            id=payment.id,
-            booking_id=payment.booking_id,
-            transaction_id=payment.transaction_id,
-            status=payment.status.value,
-            amount=payment.amount
-        )
-
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
+    except requests.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+    if response.status_code not in (200, 201):
+        raise HTTPException(status_code=400, detail=response.text)
+
+    result = response.json()
+
+    payment = Payment(
+        booking_id=payment_data.booking_id,
+        amount=payment_data.amount,
+        currency="AED",
+        transaction_id=transaction_id,
+        status=PaymentStatus.PENDING,
+        payment_method="magniti",
+        magniti_response=json.dumps(result)
+    )
+
+    db.add(payment)
+    db.commit()
+
+    return {
+        "checkoutUrl": result["session"]["url"],
+        "transactionId": transaction_id
+    }
+
+
+
 @router.get("/payment/verify/{transaction_id}")
-def verify_payment(transaction_id: str, db: Session = Depends(get_db)):
-    payment = db.query(Payment).filter(Payment.transaction_id == transaction_id).first()
+def verify_payment(transaction_id: str):
+    response = requests.get(
+        f"{MAGNITI_BASE_URL}/merchant/{settings.magniti_merchant_id}/order/{transaction_id}",
+        auth=(settings.magniti_api_key, "")
+    )
 
-    if not payment:
-        raise HTTPException(status_code=404, detail="Payment not found")
-
-    return {
-        "success": True,
-        "data": {
-            "transaction_id": payment.transaction_id,
-            "status": payment.status.value,
-            "amount": payment.amount,
-            "booking_id": str(payment.booking_id)
-        }
-    }
-
-@router.get("/payment/booking/{booking_id}")
-def get_payment_by_booking(booking_id: UUID, db: Session = Depends(get_db)):
-    payment = db.query(Payment).filter(Payment.booking_id == booking_id).first()
-
-    if not payment:
-        raise HTTPException(status_code=404, detail="Payment not found for this booking")
-
-    return {
-        "success": True,
-        "data": {
-            "id": str(payment.id),
-            "transaction_id": payment.transaction_id,
-            "status": payment.status.value,
-            "amount": payment.amount
-        }
-    }
+    return response.json()

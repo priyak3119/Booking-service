@@ -18,9 +18,16 @@ def create_booking(booking_data: BookingCreate, db: Session = Depends(get_db)):
             if not booking_data.table_id:
                 raise HTTPException(status_code=400, detail="Table selection required for VIP package")
 
+            # Fetch table and check if it's already booked
             table = db.query(Table).filter(Table.id == booking_data.table_id).first()
-            if not table or not table.is_available:
-                raise HTTPException(status_code=400, detail="Selected table is not available")
+            if not table:
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            booked_seats = db.query(Booking).filter(Booking.table_id == booking_data.table_id).count()
+            remaining_seats = table.capacity - booked_seats
+
+            if remaining_seats < 1:
+                raise HTTPException(status_code=400, detail="This table is already fully booked")
 
         if package.type == "RIDER":
             if not booking_data.riders or len(booking_data.riders) == 0:
@@ -28,6 +35,7 @@ def create_booking(booking_data: BookingCreate, db: Session = Depends(get_db)):
             if len(booking_data.riders) > 30:
                 raise HTTPException(status_code=400, detail="Maximum 30 riders allowed")
 
+        # Create booking
         booking = Booking(
             event_id=booking_data.event_id,
             package_id=booking_data.package_id,
@@ -38,10 +46,10 @@ def create_booking(booking_data: BookingCreate, db: Session = Depends(get_db)):
             emirates_id_file="placeholder",
             table_id=booking_data.table_id if package.type == "VIP" else None
         )
-
         db.add(booking)
         db.flush()
 
+        # Add riders if package is Rider type
         if booking_data.riders:
             for rider_data in booking_data.riders:
                 rider = Rider(
@@ -52,8 +60,8 @@ def create_booking(booking_data: BookingCreate, db: Session = Depends(get_db)):
                 )
                 db.add(rider)
 
+        # Mark VIP table as unavailable if fully booked
         if package.type == "VIP" and booking_data.table_id:
-            table = db.query(Table).filter(Table.id == booking_data.table_id).first()
             table.is_available = False
 
         db.commit()

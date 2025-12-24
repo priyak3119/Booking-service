@@ -3,12 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { Calendar, MapPin, Upload, Trash2, Plus, ChevronLeft, CreditCard } from 'lucide-react';
 
 const API_URL = 'http://127.0.0.1:8000/api/v2';
-// const API_URL = 'http://127.0.0.1:8000/api/v2/events/web';
 
 export function BookingPage() {
   const [step, setStep] = useState(1);
   const [event, setEvent] = useState(null);
-  // const [packages, setPackages] = useState([]);
+  const [packages, setPackages] = useState([]);
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,10 +19,6 @@ export function BookingPage() {
   const [newRider, setNewRider] = useState({ name: '', emirates_id: '' });
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get('event');
-  const [packages, setPackages] = useState([
-  { id: 1, name: 'VIP', description: 'VIP package', price: 12000, type: 'VIP' },
-  { id: 2, name: 'RIDER', description: 'Rider package', price: 2000, type: 'RIDER' },
-  ]);
  
   const [formData, setFormData] = useState({
     full_name: '',
@@ -49,6 +44,40 @@ export function BookingPage() {
   });
 
   useEffect(() => {
+    const fetchTables = async () => {
+      try {
+        const res = await fetch(`${API_URL}/tables`);
+        if (!res.ok) throw new Error('Failed to fetch tables');
+        const data = await res.json();
+        setTables(data);
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+
+    const fetchEventData = async () => {
+      try {
+        setLoading(true);
+
+        if (!eventId) throw new Error('Event ID missing in URL');
+
+        const res = await fetch(`${API_URL}/events/web?event=${eventId}`);
+        if (!res.ok) throw new Error('Failed to fetch event');
+        const eventData = await res.json();
+        setEvent(eventData);
+
+        const packagesRes = await fetch(`${API_URL}/packages/`);
+        if (!packagesRes.ok) throw new Error('Failed to fetch packages');
+        const packagesData = await packagesRes.json();
+        setPackages(packagesData || []);
+      } catch (err) {
+        setError(err.message || 'Failed to load event data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTables();
     fetchEventData();
   }, []);
 
@@ -65,10 +94,10 @@ export function BookingPage() {
       setEvent(eventData);
 
       // Fetch packages separately
-      // const packagesResponse = await fetch(`${API_URL}/events/${eventId}/packages`);
-      // if (!packagesResponse.ok) throw new Error('Failed to fetch packages');
-      // const packagesData = await packagesResponse.json();
-      // setPackages(packagesData || []);
+      const packagesResponse = await fetch(`${API_URL}/packages/`);
+      if (!packagesResponse.ok) throw new Error('Failed to fetch packages');
+      const packagesData = await packagesResponse.json();
+      setPackages(packagesData || []);
 
       // Fetch tables if needed
       setTables(eventData.tables || []);
@@ -278,6 +307,19 @@ export function BookingPage() {
     }
   };
 
+  const startPayment = async () => {
+    const res = await fetch(`${API_URL}/payment/create-session`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        booking_id: bookingId,
+        amount: totalAmount
+      })
+    });
+    const data = await res.json();
+    window.location.href = data.checkoutUrl;
+  };
+
   const totalAmount = selectedPackage
   ? selectedPackage.type === 'VIP'
     ? selectedPackage.price
@@ -461,23 +503,23 @@ export function BookingPage() {
                 <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-orange-600 to-orange-700">
                   <h2 className="text-2xl font-bold text-white">Select VIP Table</h2>
                 </div>
-
                 <div className="p-6">
                   <p className="text-sm text-slate-600 mb-4">
-                    1 Table = 6 Seats | Price: AED 12,000
+                    1 Table = {selectedTable?.capacity || 6} Seats | Price: AED {selectedPackage.price}
                   </p>
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {VIP_TABLES.map((table) => (
+                    {tables.map((table) => (
                       <button
                         key={table.id}
                         type="button"
-                        onClick={() => setSelectedTable(table.id)}
+                        onClick={() => setSelectedTable(table)}
                         className={`p-4 rounded-lg border-2 font-bold transition-all ${
-                          selectedTable === table.id
+                          selectedTable?.id === table.id
                             ? 'border-blue-600 bg-blue-50 text-blue-600'
                             : 'border-slate-300 hover:border-blue-400'
                         }`}
+                        disabled={!table.is_available}
                       >
                         Table {table.table_number}
                       </button>
@@ -493,15 +535,17 @@ export function BookingPage() {
                 <div className="p-6">
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-slate-700 mb-3">
-                      How many riders? (Max 30)
+                      How many riders? (Max {selectedPackage.max_capacity})
                     </label>
                     <div className="flex items-center gap-4">
                       <input
                         type="number"
                         min="1"
-                        max="30"
+                        max={selectedPackage.max_capacity}
                         value={riderCount}
-                        onChange={(e) => handleRiderCountChange(Math.min(30, parseInt(e.target.value) || 1))}
+                        onChange={(e) =>
+                          handleRiderCountChange(Math.min(selectedPackage.max_capacity, parseInt(e.target.value) || 1))
+                        }
                         className="w-24 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                       <span className="text-slate-600">riders</span>
@@ -578,7 +622,7 @@ export function BookingPage() {
               </button>
               <button
                 type="button"
-                onClick={proceedToPayment}
+                onClick={startPayment}
                 className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-bold"
               >
                 Proceed to Payment
@@ -710,8 +754,6 @@ export function BookingPage() {
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-sm text-slate-600">Total Amount</p>
                   <p className="text-3xl font-bold text-blue-600">AED {totalAmount}</p>
-
-                  {/* <p className="text-3xl font-bold text-blue-600">AED {selectedPackage.price}</p> */}
                 </div>
 
                 <div className="space-y-4">

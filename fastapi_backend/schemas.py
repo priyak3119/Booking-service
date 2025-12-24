@@ -1,10 +1,10 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
-from uuid import UUID
+
 
 class EventResponse(BaseModel):
-    id: UUID
+    id: int
     title: str
     venue: str
     event_date: datetime
@@ -14,8 +14,9 @@ class EventResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class PackageResponse(BaseModel):
-    id: UUID
+    id: int
     name: str
     type: str
     price: float
@@ -25,8 +26,9 @@ class PackageResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class TableResponse(BaseModel):
-    id: UUID
+    id: int
     table_number: int
     capacity: int
     is_available: bool
@@ -34,22 +36,25 @@ class TableResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class RiderCreate(BaseModel):
     rider_name: str
     rider_emirates_id: str
 
+
 class BookingCreate(BaseModel):
-    event_id: UUID
-    package_id: UUID
+    event_id: int
+    package_id: int
     full_name: str
     contact_number: str
     email: EmailStr
     emirates_id: str
-    table_id: Optional[UUID] = None
+    table_id: Optional[int] = None
     riders: Optional[List[RiderCreate]] = None
 
+
 class BookingResponse(BaseModel):
-    id: UUID
+    id: int
     full_name: str
     email: str
     booking_date: datetime
@@ -58,24 +63,23 @@ class BookingResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+# ✅ SAFE Magniti schema
 class PaymentInitiate(BaseModel):
-    booking_id: UUID
+    booking_id: int
     amount: float
-    card_number: str
-    card_holder: str
-    expiry_month: int
-    expiry_year: int
-    cvv: str
+
 
 class PaymentResponse(BaseModel):
-    id: UUID
-    booking_id: UUID
+    id: int
+    booking_id: int
     transaction_id: str
     status: str
     amount: float
 
     class Config:
         from_attributes = True
+
 
 class EventDetailResponse(BaseModel):
     event: EventResponse
