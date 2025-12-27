@@ -10,8 +10,9 @@ import json
 
 router = APIRouter(prefix="/api/v2", tags=["payments"])
 
-MAGNITI_BASE_URL = "https://ap-gateway.mastercard.com/api/rest"
-# MAGNITI_BASE_URL = "https://ap-gateway.mastercard.com/ma/login.s"
+# MAGNITI_BASE_URL = "https://ap-gateway.mastercard.com/api/rest"
+MAGNITI_BASE_URL = "https://test-gateway.mastercard.com/api/rest"
+
 
 
 @router.post("/payment/create-session")
@@ -26,34 +27,51 @@ def create_payment_session(
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
 
+    if payment_data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid payment amount")
+
+    # Prevent duplicate payment attempts
+    existing_payment = db.query(Payment).filter(
+        Payment.booking_id == payment_data.booking_id,
+        Payment.status == PaymentStatus.PENDING
+    ).first()
+
+    if existing_payment:
+        raise HTTPException(
+            status_code=400,
+            detail="Payment already initiated for this booking"
+        )
+
     transaction_id = f"TXN-{uuid.uuid4().hex[:12].upper()}"
 
     payload = {
         "apiOperation": "CREATE_CHECKOUT_SESSION",
         "order": {
             "id": transaction_id,
-            "amount": payment_data.amount,
+            "amount": f"{payment_data.amount:.2f}",  # 🔴 FIXED
             "currency": "AED"
         },
         "interaction": {
+            "operation": "PURCHASE",                # 🔴 FIXED
             "returnUrl": "http://localhost:5173/payment/success",
             "cancelUrl": "http://localhost:5173/payment/failed"
         }
     }
 
-    try:
-        response = requests.post(
-            f"{MAGNITI_BASE_URL}/version/{settings.magniti_api_version}"
-            f"/merchant/{settings.magniti_merchant_id}/session",
-            auth=(
-                settings.magniti_operator_id,
-                settings.magniti_password
-            ),
-            json=payload,
-            timeout=30
-        )
-    except requests.RequestException as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    response = requests.post(
+        f"{MAGNITI_BASE_URL}/version/{settings.magniti_api_version}"
+        f"/merchant/{settings.magniti_merchant_id}/session",
+        auth=(
+            settings.magniti_operator_id,
+            settings.magniti_password
+        ),
+        json=payload,
+        timeout=30
+    )
+
+    # 🔍 DEBUG (keep this while testing)
+    print("Magniti status:", response.status_code)
+    print("Magniti response:", response.text)
 
     if response.status_code not in (200, 201):
         raise HTTPException(status_code=400, detail=response.text)

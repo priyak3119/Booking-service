@@ -77,13 +77,16 @@ class Rider(Base):
     id = Column(Integer, primary_key=True, index=True)
     booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=False)
 
-    rider_name = Column(String(255), nullable=False)
-    rider_emirates_id = Column(String(50), nullable=False)
-    rider_id_file = Column(String(500), nullable=False)
+    rider_name = Column(String, nullable=False)
+    rider_emirates_id = Column(String, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    rider_email = Column(String, nullable=False)
+    rider_contact_number = Column(String, nullable=False)
 
+    rider_emirates_id_file = Column(String, nullable=True)
+    
     booking = relationship("Booking", back_populates="riders")
+
 
 
 class Payment(Base):

@@ -1,18 +1,19 @@
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 from datetime import datetime
+# from schemas.rider import RiderCreate
 
 
-class EventResponse(BaseModel):
-    id: int
-    title: str
-    venue: str
-    event_date: datetime
-    description: Optional[str]
-    image_url: Optional[str]
+# class EventResponse(BaseModel):
+#     id: int
+#     title: str
+#     venue: str
+#     event_date: datetime
+#     description: Optional[str]
+#     image_url: Optional[str]
 
-    class Config:
-        from_attributes = True
+#     class Config:
+#         from_attributes = True
 
 
 class PackageResponse(BaseModel):
@@ -40,6 +41,9 @@ class TableResponse(BaseModel):
 class RiderCreate(BaseModel):
     rider_name: str
     rider_emirates_id: str
+    rider_email: EmailStr
+    rider_contact_number: str
+    rider_emirates_id_file: str | None = None
 
 
 class BookingCreate(BaseModel):
@@ -49,8 +53,8 @@ class BookingCreate(BaseModel):
     contact_number: str
     email: EmailStr
     emirates_id: str
-    table_id: Optional[int] = None
-    riders: Optional[List[RiderCreate]] = None
+    table_id: int | None = None
+    riders: list[RiderCreate] | None = None
 
 
 class BookingResponse(BaseModel):
@@ -81,10 +85,10 @@ class PaymentResponse(BaseModel):
         from_attributes = True
 
 
-class EventDetailResponse(BaseModel):
-    event: EventResponse
-    packages: List[PackageResponse]
-    tables: List[TableResponse]
+# class EventDetailResponse(BaseModel):
+#     event: EventResponse
+#     packages: List[PackageResponse]
+#     tables: List[TableResponse]
 
-    class Config:
-        from_attributes = True
+#     class Config:
+#         from_attributes = True
