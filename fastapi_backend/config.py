@@ -18,4 +18,9 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_USERNAME = "priyabridgingfx@gmail.com"
+SMTP_PASSWORD = "tcrmxiotpmzubwqo"
+SMTP_FROM_EMAIL = "FBMA <priyabridgingfx@gmail.com>"
 

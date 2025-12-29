@@ -235,99 +235,133 @@ export function BookingPage() {
       : selectedPackage.price * riderCount
     : 0;
 
-    const handlePaymentSubmit = async (e) => {
-      e.preventDefault();
-      setSubmitLoading(true);
-      setError('');
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitLoading(true);
+    setError('');
 
-      try {
-        if (!selectedPackage) throw new Error('Package not selected');
+    try {
+      if (!selectedPackage) throw new Error('Please select a package first');
+      if (!event?.id) throw new Error('Event ID missing');
 
-        // 1️⃣ Validate personal details
+      // -------- VIP Package --------
+      if (selectedPackage.type === 'VIP') {
         const { full_name, contact_number, email, emirates_id } = formData;
+
         if (!full_name || !contact_number || !email || !emirates_id) {
           throw new Error('Please fill all your personal details');
         }
-
         if (!emiratesIdFile) throw new Error('Please upload Emirates ID proof');
+        if (!selectedTable?.id) throw new Error('Please select a VIP table');
 
-        // 2️⃣ Validate VIP or Rider specifics
-        if (selectedPackage.type === 'VIP') {
-          if (!selectedTable) throw new Error('Please select a VIP table');
-        } else if (selectedPackage.type === 'RIDER') {
-          if (!riders || riders.length === 0) throw new Error('No riders added');
-          for (let i = 0; i < riders.length; i++) {
-            const r = riders[i];
-            if (!r.name || !r.emirates_id || !r.email || !r.contact_number) {
-              throw new Error(`Rider ${i + 1}: Please fill all details`);
-            }
-            if (!r.file) throw new Error(`Rider ${i + 1}: Please upload ID proof`);
-          }
-        }
+        const vipFormData = new FormData();
+        vipFormData.append('event_id', event.id);
+        vipFormData.append('package_id', selectedPackage.id);
+        vipFormData.append('full_name', full_name);
+        vipFormData.append('contact_number', contact_number);
+        vipFormData.append('email', email);
+        vipFormData.append('emirates_id', emirates_id);
+        vipFormData.append('emirates_id_file', emiratesIdFile);
+        vipFormData.append('table_id', selectedTable.id);
 
-        // 3️⃣ Build FormData
-        const formDataPayload = new FormData();
-        formDataPayload.append('event_id', event.id);
-        formDataPayload.append('package_id', selectedPackage.id);
-        formDataPayload.append('full_name', full_name);
-        formDataPayload.append('contact_number', contact_number);
-        formDataPayload.append('email', email);
-        formDataPayload.append('emirates_id', emirates_id);
-        formDataPayload.append('emirates_id_file', emiratesIdFile);
-
-        if (selectedPackage.type === 'VIP' && selectedTable) {
-          formDataPayload.append('table_id', selectedTable.id);
-        }
-
-        if (selectedPackage.type === 'RIDER') {
-          // Convert rider data to JSON string
-          const ridersData = riders.map((r) => ({
-            rider_name: r.name,
-            rider_emirates_id: r.emirates_id,
-            rider_email: r.email,
-            rider_contact_number: r.contact_number,
-          }));
-          formDataPayload.append('riders_json', JSON.stringify(ridersData));
-          // Append each rider file
-          riders.forEach((r, idx) => {
-            formDataPayload.append('rider_files', r.file);
-          });
-        }
-
-        // 4️⃣ Submit booking to backend
         const bookingResponse = await fetch(`${API_URL}/bookings`, {
           method: 'POST',
-          body: formDataPayload,
+          body: vipFormData,
         });
-
         const bookingResult = await bookingResponse.json();
         if (!bookingResponse.ok) {
-          throw new Error(bookingResult.detail || 'Booking failed');
+          throw new Error(bookingResult.detail || 'VIP booking failed');
         }
 
-        const createdBookingId = bookingResult.id;
-        setBookingId(createdBookingId);
-
+        setBookingId(bookingResult.id);
         const paymentResponse = await fetch(`${API_URL}/payment/create-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            booking_id: createdBookingId,
+            booking_id: bookingResult.id,
             amount: parseFloat(totalAmount),
           }),
         });
 
         const paymentResult = await paymentResponse.json();
-        if (!paymentResult.checkoutUrl) throw new Error('Payment session URL missing');
+        if (!paymentResult.checkoutUrl) {
+          throw new Error('Payment session URL missing');
+        }
+
+        // ✅ REDIRECT TO MASTERCARD
         window.location.href = paymentResult.checkoutUrl;
         setStep(5);
-
-      } catch (err) {
-        setError(err.message || 'An error occurred');
-      } finally {
-        setSubmitLoading(false);
+        return;
       }
-    };
+      // -------- RIDER Package --------
+      if (selectedPackage.type === 'RIDER') {
+        if (!riders || riders.length === 0) {
+          throw new Error('No riders added');
+        }
+
+        // Validate riders
+        riders.forEach((r, index) => {
+          if (!r.name || !r.email || !r.contact_number || !r.emirates_id) {
+            throw new Error(`Rider ${index + 1}: Fill all details`);
+          }
+          if (!r.file) {
+            throw new Error(`Rider ${index + 1}: Upload Emirates ID`);
+          }
+        });
+
+        const formData = new FormData();
+        formData.append('event_id', event.id);
+        formData.append('package_id', selectedPackage.id);
+
+        // ✅ 1. Send rider details as JSON
+        const ridersJson = riders.map((r) => ({
+          rider_name: r.name,
+          rider_email: r.email,
+          rider_contact_number: r.contact_number,
+          rider_emirates_id: r.emirates_id,
+        }));
+
+        formData.append('riders', JSON.stringify(ridersJson));
+
+        // ✅ 2. Send files separately
+        riders.forEach((r) => {
+          formData.append('rider_files', r.file);
+        });
+
+        const response = await fetch(`${API_URL}/bookings`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || 'Rider booking failed');
+        }
+
+        setBookingId(result.id);
+        const paymentResponse = await fetch(`${API_URL}/payment/create-session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            booking_id: result.id,
+            amount: parseFloat(totalAmount),
+          }),
+        });
+
+        const paymentResult = await paymentResponse.json();
+        if (!paymentResult.checkoutUrl) {
+          throw new Error('Payment session URL missing');
+        }
+
+        window.location.href = paymentResult.checkoutUrl;
+        setStep(5);
+      }
+    } catch (err) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   const handleBackToBooking = () => {
     setStep(1);
@@ -769,8 +803,36 @@ export function BookingPage() {
             </div>
           </form>
         )} 
-
         {step === 4 && (
+          <form onSubmit={handlePaymentSubmit} className="space-y-6">
+            <section className="bg-white rounded-lg shadow-sm border p-6">
+              <h2 className="text-2xl font-bold mb-4">Confirm Payment</h2>
+
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border">
+                <p className="text-sm text-slate-600">Total Amount</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  AED {totalAmount}
+                </p>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-700">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitLoading}
+                className="w-full bg-green-600 text-white px-6 py-3 rounded-lg font-bold"
+              >
+                {submitLoading ? 'Redirecting…' : 'Proceed to Secure Payment'}
+              </button>
+            </section>
+          </form>
+        )}
+
+        {/* {step === 4 && (
           <form onSubmit={handlePaymentSubmit} className="space-y-6">
             <section className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-green-600 to-green-700">
@@ -871,11 +933,6 @@ export function BookingPage() {
                   disabled={submitLoading}
                   className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
                 >
-              {/* <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
-              > */}
                 <ChevronLeft className="w-4 h-4" />
                 <span>Back</span>
               </button>
@@ -888,7 +945,7 @@ export function BookingPage() {
               </button>
             </div>
           </form>
-        )}
+        )} */}
 
         {/* Step 5: Success */}
         {step === 5 && (
@@ -911,7 +968,19 @@ export function BookingPage() {
                 <p className="text-sm text-slate-600 mb-1">Booking ID</p>
                 <p className="text-xl font-bold text-slate-900 break-all">{bookingId}</p>
               </div>
-
+              {riders && riders.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="font-bold text-slate-900">Riders</h4>
+                  {riders.map((rider, index) => (
+                    <div key={index} className="p-2 border rounded bg-slate-50">
+                      <p><strong>Name:</strong> {rider.name}</p>
+                      <p><strong>Email:</strong> {rider.email}</p>
+                      <p><strong>Contact:</strong> {rider.contact_number}</p>
+                      <p><strong>Emirates ID:</strong> {rider.emirates_id}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <button
                 onClick={handleBackToBooking}
                 className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"

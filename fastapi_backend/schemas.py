@@ -56,6 +56,18 @@ class BookingCreate(BaseModel):
     table_id: int | None = None
     riders: list[RiderCreate] | None = None
 
+class RiderResponse(BaseModel):
+    id: int
+    booking_id: int
+    rider_name: str
+    rider_emirates_id: str
+    rider_email: EmailStr
+    rider_contact_number: str
+    rider_emirates_id_file: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 
 class BookingResponse(BaseModel):
     id: int
@@ -63,9 +75,11 @@ class BookingResponse(BaseModel):
     email: str
     booking_date: datetime
     amount: float
+    riders: Optional[List[RiderResponse]] = None  # <-- add this line
 
     class Config:
         from_attributes = True
+
 
 
 # ✅ SAFE Magniti schema
@@ -77,6 +91,7 @@ class PaymentInitiate(BaseModel):
 class PaymentResponse(BaseModel):
     id: int
     booking_id: int
+    package_id: int
     transaction_id: str
     status: str
     amount: float
