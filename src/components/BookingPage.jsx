@@ -279,18 +279,41 @@ export function BookingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             booking_id: bookingResult.id,
+            package_id: selectedPackage.id,
             amount: parseFloat(totalAmount),
           }),
         });
 
         const paymentResult = await paymentResponse.json();
-        if (!paymentResult.checkoutUrl) {
-          throw new Error('Payment session URL missing');
+        if (!paymentResult.sessionId || !paymentResult.sessionKey) {
+          throw new Error('Payment session failed');
         }
 
-        // ✅ REDIRECT TO MASTERCARD
-        window.location.href = paymentResult.checkoutUrl;
-        setStep(5);
+        // ✅ Initialize Mastercard Checkout
+        const checkout = new window.MastercardCheckout({
+          session: {
+            id: paymentResult.sessionId,
+            aesKey: paymentResult.sessionKey
+          }
+        });
+
+        checkout.start();
+
+        checkout.on('success', () => {
+          setStep(5); // Payment Success step
+        });
+
+        checkout.on('error', (err) => {
+          console.error(err);
+          setError('Payment failed. Please try again.');
+        });
+        // if (!paymentResult.checkoutUrl) {
+        //   throw new Error('Payment session URL missing');
+        // }
+
+        // // ✅ REDIRECT TO MASTERCARD
+        // window.location.href = paymentResult.checkoutUrl;
+        // setStep(5);
         return;
       }
       // -------- RIDER Package --------
@@ -344,17 +367,40 @@ export function BookingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             booking_id: result.id,
+            package_id: selectedPackage.id,
             amount: parseFloat(totalAmount),
           }),
         });
 
         const paymentResult = await paymentResponse.json();
-        if (!paymentResult.checkoutUrl) {
-          throw new Error('Payment session URL missing');
+        if (!paymentResult.sessionId || !paymentResult.sessionKey) {
+          throw new Error('Payment session failed');
         }
 
-        window.location.href = paymentResult.checkoutUrl;
-        setStep(5);
+        // ✅ Initialize Mastercard Checkout
+        const checkout = new window.MastercardCheckout({
+          session: {
+            id: paymentResult.sessionId,
+            aesKey: paymentResult.sessionKey
+          }
+        });
+
+        checkout.start();
+
+        checkout.on('success', () => {
+          setStep(5); // Payment Success step
+        });
+
+        checkout.on('error', (err) => {
+          console.error(err);
+          setError('Payment failed. Please try again.');
+        });
+        // if (!paymentResult.checkoutUrl) {
+        //   throw new Error('Payment session URL missing');
+        // }
+
+        // window.location.href = paymentResult.checkoutUrl;
+        // setStep(5);
       }
     } catch (err) {
       setError(err.message || 'An error occurred');

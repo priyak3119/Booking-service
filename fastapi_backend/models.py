@@ -161,7 +161,7 @@ class Payment(Base):
         nullable=False,
         unique=True
     )
-
+    package_id = Column(Integer, ForeignKey("packages.id"), nullable=True)
     amount = Column(Float, nullable=False)
     currency = Column(String(10), default="AED")
     transaction_id = Column(String(255), unique=True)

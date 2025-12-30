@@ -85,6 +85,7 @@ class BookingResponse(BaseModel):
 # ✅ SAFE Magniti schema
 class PaymentInitiate(BaseModel):
     booking_id: int
+    package_id: int
     amount: float
 
 
