@@ -35,13 +35,6 @@ export function BookingPage() {
   const [emiratesIdFile, setEmiratesIdFile] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [bookingId, setBookingId] = useState(null);
-  const [paymentData, setPaymentData] = useState({
-    card_number: '',
-    card_holder: '',
-    expiry_month: '',
-    expiry_year: '',
-    cvv: '',
-  });
 
   useEffect(() => {
     if (!API_URL) return;
@@ -100,6 +93,11 @@ export function BookingPage() {
       }
     }
   }, [step, selectedPackage, tables]);
+
+  useEffect(() => {
+    loadMastercardSDK().catch(console.error);
+  }, []);
+
 
   const handlePackageSelect = (pkg) => {
     setSelectedPackage(pkg);
@@ -235,6 +233,55 @@ export function BookingPage() {
       : selectedPackage.price * riderCount
     : 0;
 
+
+  const loadMastercardSDK = (maxRetries = 3, delay = 1000) => {
+    return new Promise((resolve, reject) => {
+      if (window.Checkout) return resolve(); // Already loaded
+
+      let attempts = 0;
+
+      const tryLoad = () => {
+        attempts++;
+
+        const existingScript = document.querySelector(
+          'script[src*="checkout/checkout.js"]'
+        );
+        if (existingScript) existingScript.remove();
+
+        const script = document.createElement('script');
+        script.src = 'https://ap-gateway.mastercard.com/static/checkout/checkout.js';
+        script.async = true;
+
+        script.onload = () => {
+          if (window.Checkout) {
+            console.log('Mastercard SDK loaded successfully');
+            resolve();
+          } else if (attempts < maxRetries) {
+            console.warn(
+              `Mastercard SDK object not found, retrying (${attempts}/${maxRetries})...`
+            );
+            setTimeout(tryLoad, delay);
+          } else {
+            reject(new Error('Mastercard Checkout SDK loaded but Checkout object not found'));
+          }
+        };
+
+        script.onerror = () => {
+          if (attempts < maxRetries) {
+            console.warn(`Failed to load Mastercard SDK, retrying (${attempts}/${maxRetries})...`);
+            setTimeout(tryLoad, delay);
+          } else {
+            reject(new Error('Failed to load Mastercard Checkout SDK after multiple attempts'));
+          }
+        };
+
+        document.body.appendChild(script);
+      };
+
+      tryLoad();
+    });
+  };
+
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     setSubmitLoading(true);
@@ -244,13 +291,18 @@ export function BookingPage() {
       if (!selectedPackage) throw new Error('Please select a package first');
       if (!event?.id) throw new Error('Event ID missing');
 
-      // -------- VIP Package --------
+      if (window.location.protocol !== 'https:') {
+        throw new Error('Mastercard hosted payment requires HTTPS');
+      }
+
+      await loadMastercardSDK();
+
+      let bookingResult;
+
       if (selectedPackage.type === 'VIP') {
         const { full_name, contact_number, email, emirates_id } = formData;
-
-        if (!full_name || !contact_number || !email || !emirates_id) {
-          throw new Error('Please fill all your personal details');
-        }
+        if (!full_name || !contact_number || !email || !emirates_id)
+          throw new Error('Please fill all personal details');
         if (!emiratesIdFile) throw new Error('Please upload Emirates ID proof');
         if (!selectedTable?.id) throw new Error('Please select a VIP table');
 
@@ -264,151 +316,90 @@ export function BookingPage() {
         vipFormData.append('emirates_id_file', emiratesIdFile);
         vipFormData.append('table_id', selectedTable.id);
 
-        const bookingResponse = await fetch(`${API_URL}/bookings`, {
-          method: 'POST',
-          body: vipFormData,
-        });
-        const bookingResult = await bookingResponse.json();
-        if (!bookingResponse.ok) {
-          throw new Error(bookingResult.detail || 'VIP booking failed');
-        }
-
-        setBookingId(bookingResult.id);
-        const paymentResponse = await fetch(`${API_URL}/payment/create-session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            booking_id: bookingResult.id,
-            package_id: selectedPackage.id,
-            amount: parseFloat(totalAmount),
-          }),
-        });
-
-        const paymentResult = await paymentResponse.json();
-        if (!paymentResult.sessionId || !paymentResult.sessionKey) {
-          throw new Error('Payment session failed');
-        }
-
-        // ✅ Initialize Mastercard Checkout
-        const checkout = new window.MastercardCheckout({
-          session: {
-            id: paymentResult.sessionId,
-            aesKey: paymentResult.sessionKey
-          }
-        });
-
-        checkout.start();
-
-        checkout.on('success', () => {
-          setStep(5); // Payment Success step
-        });
-
-        checkout.on('error', (err) => {
-          console.error(err);
-          setError('Payment failed. Please try again.');
-        });
-        // if (!paymentResult.checkoutUrl) {
-        //   throw new Error('Payment session URL missing');
-        // }
-
-        // // ✅ REDIRECT TO MASTERCARD
-        // window.location.href = paymentResult.checkoutUrl;
-        // setStep(5);
-        return;
+        const response = await fetch(`${API_URL}/bookings`, { method: 'POST', body: vipFormData });
+        bookingResult = await response.json();
+        if (!response.ok) throw new Error(bookingResult.detail || 'VIP booking failed');
       }
-      // -------- RIDER Package --------
-      if (selectedPackage.type === 'RIDER') {
-        if (!riders || riders.length === 0) {
-          throw new Error('No riders added');
-        }
 
-        // Validate riders
-        riders.forEach((r, index) => {
-          if (!r.name || !r.email || !r.contact_number || !r.emirates_id) {
-            throw new Error(`Rider ${index + 1}: Fill all details`);
-          }
-          if (!r.file) {
-            throw new Error(`Rider ${index + 1}: Upload Emirates ID`);
-          }
+      if (selectedPackage.type === 'RIDER') {
+        if (!riders || riders.length === 0) throw new Error('No riders added');
+
+        riders.forEach((r, i) => {
+          if (!r.name || !r.email || !r.contact_number || !r.emirates_id)
+            throw new Error(`Rider ${i + 1}: Fill all details`);
+          if (!r.file) throw new Error(`Rider ${i + 1}: Upload Emirates ID`);
         });
 
-        const formData = new FormData();
-        formData.append('event_id', event.id);
-        formData.append('package_id', selectedPackage.id);
+        const riderFormData = new FormData();
+        riderFormData.append('event_id', event.id);
+        riderFormData.append('package_id', selectedPackage.id);
 
-        // ✅ 1. Send rider details as JSON
         const ridersJson = riders.map((r) => ({
           rider_name: r.name,
           rider_email: r.email,
           rider_contact_number: r.contact_number,
           rider_emirates_id: r.emirates_id,
         }));
+        riderFormData.append('riders', JSON.stringify(ridersJson));
 
-        formData.append('riders', JSON.stringify(ridersJson));
+        riders.forEach((r) => riderFormData.append('rider_files', r.file));
 
-        // ✅ 2. Send files separately
-        riders.forEach((r) => {
-          formData.append('rider_files', r.file);
-        });
-
-        const response = await fetch(`${API_URL}/bookings`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-          throw new Error(result.detail || 'Rider booking failed');
-        }
-
-        setBookingId(result.id);
-        const paymentResponse = await fetch(`${API_URL}/payment/create-session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            booking_id: result.id,
-            package_id: selectedPackage.id,
-            amount: parseFloat(totalAmount),
-          }),
-        });
-
-        const paymentResult = await paymentResponse.json();
-        if (!paymentResult.sessionId || !paymentResult.sessionKey) {
-          throw new Error('Payment session failed');
-        }
-
-        // ✅ Initialize Mastercard Checkout
-        const checkout = new window.MastercardCheckout({
-          session: {
-            id: paymentResult.sessionId,
-            aesKey: paymentResult.sessionKey
-          }
-        });
-
-        checkout.start();
-
-        checkout.on('success', () => {
-          setStep(5); // Payment Success step
-        });
-
-        checkout.on('error', (err) => {
-          console.error(err);
-          setError('Payment failed. Please try again.');
-        });
-        // if (!paymentResult.checkoutUrl) {
-        //   throw new Error('Payment session URL missing');
-        // }
-
-        // window.location.href = paymentResult.checkoutUrl;
-        // setStep(5);
+        const response = await fetch(`${API_URL}/bookings`, { method: 'POST', body: riderFormData });
+        bookingResult = await response.json();
+        if (!response.ok) throw new Error(bookingResult.detail || 'Rider booking failed');
       }
+
+      setBookingId(bookingResult.id);
+
+      const paymentResponse = await fetch(`${API_URL}/payment/create-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: bookingResult.id,
+          package_id: selectedPackage.id,
+          amount: parseFloat(totalAmount),
+        }),
+      });
+
+      const paymentResult = await paymentResponse.json();
+      if (!paymentResult.sessionId) throw new Error('Payment session creation failed');
+
+      console.log('Payment session ID:', paymentResult.sessionId);
+
+      if (!window.Checkout) throw new Error('Mastercard Checkout SDK not loaded');
+
+      window.Checkout.configure({
+        session: { id: paymentResult.sessionId },
+        interaction: {
+          operation: 'PURCHASE',
+          merchant: { name: 'FBMA' },
+          displayControl: { billingAddress: 'HIDE', customerEmail: 'OPTIONAL' },
+        },
+        callbacks: {
+          onPaymentCompleted: function (result) {
+            console.log('Payment success', result);
+            setStep(5);
+          },
+          onPaymentCancelled: function () {
+            setError('Payment was cancelled');
+          },
+          onError: function (error) {
+            console.error(error);
+            setError('Payment failed. Please try again.');
+          },
+        },
+      });
+
+      window.Checkout.showPaymentPage();
+
     } catch (err) {
-      setError(err.message || 'An error occurred');
+      console.error(err);
+      setError(err.message || 'An error occurred during payment');
     } finally {
       setSubmitLoading(false);
     }
   };
-
+  
   const handleBackToBooking = () => {
     setStep(1);
     setSelectedPackage(null);
@@ -877,121 +868,6 @@ export function BookingPage() {
             </section>
           </form>
         )}
-
-        {/* {step === 4 && (
-          <form onSubmit={handlePaymentSubmit} className="space-y-6">
-            <section className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-green-600 to-green-700">
-                <div className="flex items-center space-x-2">
-                  <CreditCard className="w-6 h-6" />
-                  <h2 className="text-2xl font-bold text-white">Payment Details</h2>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-slate-600">Total Amount</p>
-                  <p className="text-3xl font-bold text-blue-600">AED {totalAmount}</p>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Card Number *</label>
-                    <input
-                      type="text"
-                      name="card_number"
-                      value={paymentData.card_number}
-                      onChange={handlePaymentChange}
-                      placeholder="1234 5678 9012 3456"
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      maxLength="19"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">Card Holder Name *</label>
-                    <input
-                      type="text"
-                      name="card_holder"
-                      value={paymentData.card_holder}
-                      onChange={handlePaymentChange}
-                      placeholder="Enter name on card"
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Month *</label>
-                      <input
-                        type="number"
-                        name="expiry_month"
-                        value={paymentData.expiry_month}
-                        onChange={handlePaymentChange}
-                        placeholder="MM"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        min="1"
-                        max="12"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Year *</label>
-                      <input
-                        type="number"
-                        name="expiry_year"
-                        value={paymentData.expiry_year}
-                        onChange={handlePaymentChange}
-                        placeholder="YYYY"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        min={new Date().getFullYear()}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">CVV *</label>
-                      <input
-                        type="text"
-                        name="cvv"
-                        value={paymentData.cvv}
-                        onChange={handlePaymentChange}
-                        placeholder="123"
-                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        maxLength="4"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-700">{error}</p>
-              </div>
-            )}
-
-            <div className="flex gap-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedPackage.type === 'VIP') {
-                      setStep(3);
-                    } else {
-                      setStep(2);
-                    }
-                  }}
-                  disabled={submitLoading}
-                  className="flex-1 bg-slate-500 text-white px-6 py-3 rounded-lg hover:bg-slate-600 disabled:bg-gray-400 font-bold flex items-center justify-center space-x-2"
-                >
-                <ChevronLeft className="w-4 h-4" />
-                <span>Back</span>
-              </button>
-              <button
-                type="submit"
-                disabled={submitLoading}
-                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3 rounded-lg hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 font-bold"
-              >
-                {submitLoading ? 'Processing...' : 'Complete Payment'}
-              </button>
-            </div>
-          </form>
-        )} */}
 
         {/* Step 5: Success */}
         {step === 5 && (

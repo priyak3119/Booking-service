@@ -7,6 +7,8 @@ from database import engine, Base
 from routes import events, bookings, payments, uploads, packages, tables
 import os
 
+from fastapi.responses import FileResponse
+
 
 from config import settings
 print("Magniti merchant:", settings.magniti_merchant_id)
@@ -51,3 +53,13 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+    
+    
+
+
+app = FastAPI()
+
+@app.get("/test_mastercard")
+def serve_test_page():
+    return FileResponse("test_mastercard.html")
+

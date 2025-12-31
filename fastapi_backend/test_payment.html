@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mastercard Test Payment</title>
+</head>
+<body>
+  <h1>Mastercard Payment Test</h1>
+  <button id="payBtn">Pay Now</button>
+
+  <script>
+    async function startPayment() {
+      try {
+        // Call your FastAPI endpoint to create the payment session
+        const response = await fetch("http://127.0.0.1:8000/api/v2/payment/create-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            booking_id: 1,  // Replace with a valid booking ID from your DB
+            package_id: 1,  // Replace with a valid package ID
+            amount: 100     // Amount for test
+          })
+        });
+
+        const data = await response.json();
+        console.log("Session data:", data);
+
+        if (!window.Checkout) {
+          const script = document.createElement("script");
+          script.src = "https://ap-gateway.mastercard.com/static/checkout/checkout.js";
+          script.onload = () => showPaymentPage(data.sessionId);
+          document.body.appendChild(script);
+        } else {
+          showPaymentPage(data.sessionId);
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert("Failed to create payment session");
+      }
+    }
+
+    function showPaymentPage(sessionId) {
+      window.Checkout.configure({
+        session: { id: sessionId },
+        interaction: {
+          operation: "PURCHASE",
+          merchant: { name: "FBMA" },
+          displayControl: { billingAddress: "HIDE", customerEmail: "OPTIONAL" }
+        },
+        callbacks: {
+          onPaymentCompleted: () => alert("Payment Success!"),
+          onPaymentCancelled: () => alert("Payment Cancelled"),
+          onError: (err) => alert("Payment Error: " + JSON.stringify(err))
+        }
+      });
+      window.Checkout.showPaymentPage();
+    }
+
+    document.getElementById("payBtn").addEventListener("click", startPayment);
+  </script>
+</body>
+</html>
