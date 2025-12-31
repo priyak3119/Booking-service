@@ -54,12 +54,5 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
     
-    
 
-
-app = FastAPI()
-
-@app.get("/test_mastercard")
-def serve_test_page():
-    return FileResponse("test_mastercard.html")
 

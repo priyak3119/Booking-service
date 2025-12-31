@@ -14,7 +14,7 @@ async def get_events_web(
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
                 UMBRACO_EVENTS_URL,
-                params={"l": l}
+                params={"l": l, "event": event_id}
             )
 
         if response.status_code != 200:
