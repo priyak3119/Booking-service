@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     magniti_merchant_id: str = "804014000"
     magniti_operator_id: str = "merchant.804014000"
     magniti_password: str = "56e7281fda84682d652ce01d9d6e4ae4"
-    magniti_api_version: str = "65"
+    magniti_api_version: str = "100"
 
     # File uploads
     upload_folder: str = "./uploads"

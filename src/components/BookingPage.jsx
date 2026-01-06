@@ -244,12 +244,13 @@ export function BookingPage() {
         attempts++;
 
         const existingScript = document.querySelector(
-          'script[src*="checkout/checkout.js"]'
+          'script[src*="checkout/checkout.min.js"]'
         );
         if (existingScript) existingScript.remove();
 
         const script = document.createElement('script');
-        script.src = 'https://ap-gateway.mastercard.com/static/checkout/checkout.js';
+        script.src = 'https://ap-gateway.mastercard.com/static/checkout/checkout.min.js';
+        // script.src = 'https://ap-gateway.mastercard.com/static/checkout/checkout.js';
         script.async = true;
 
         script.onload = () => {
