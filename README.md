@@ -97,7 +97,8 @@ src/
 ├── components/
 ├── api/
 ├── styles/
-cd backend
+
+## backend
 
 python -m venv venv
 venv\Scripts\activate
